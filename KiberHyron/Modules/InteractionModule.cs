@@ -1,9 +1,11 @@
 ﻿using Discord;
 using Discord.Interactions;
+using KiberHyron.Data;
 using KiberHyron.Log;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,16 +21,43 @@ namespace KiberHyron
         {
             _logger = logger;
         }
-
+        #region commands
         [SlashCommand("создать_игру", "Создаёт новую игру и позволяет настроить её параметры")]
         public async Task Create()
         {
             // New LogMessage created to pass desired info to the console using the existing Discord.Net LogMessage parameters
             await _logger.Log(new LogMessage(LogSeverity.Info, "InteractionModule : Create", $"User: {Context.User.Username}, Command: создать_игру", null));
             // Respond to the user
-            await RespondAsync("Пока не умею :(");
+            await RespondWithModalAsync<GameModal>("newGameModal");
         }
-
-        
+        #endregion
+        #region interactions
+        [ModalInteraction("newGameModal")]
+        public async Task HandleNewGameModal(GameModal modal)
+        {
+            if (!uint.TryParse(modal.Color, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var color) && modal.Color != "")
+            {
+                await RespondAsync("Поле \"Цвет\" содержит значение в неправильном формате. Попробуйте ещё раз", ephemeral: true);
+                return;
+            }
+            if (!(Uri.TryCreate(modal.Link, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)))
+            {
+                await RespondAsync("Поле \"Ссылка\" содержит значение в неправильном формате. Попробуйте ещё раз", ephemeral: true);
+                return;
+            }
+            BotData data = BotData.GetAllData();
+            Random rand = new Random();
+            data.Games.Add(new RoleGame()
+            {
+                Color = modal.Color == "" ? new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)) : color,
+                Description = modal.Description,
+                Link = modal.Link,
+                Master = Context.User.Id,
+                Name = modal.Name
+            });
+            BotData.WriteNewData(data);
+            await RespondAsync($"Создана игра: {modal.Name}");
+        }
+        #endregion
     }
 }
