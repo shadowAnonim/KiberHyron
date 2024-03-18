@@ -34,6 +34,11 @@ namespace KiberHyron
         public async Task ShowAllGames()
         {
             List<RoleGame> games = BotData.GetAllGames();
+            if (games.Count == 0)
+            {
+                await RespondAsync("Пока что нет ни одной игры");
+                return;
+            }
             Embed[] embeds = new Embed[games.Count];
             for (int i = 0; i < games.Count; i++) 
             {
@@ -69,7 +74,7 @@ namespace KiberHyron
             Random rand = new Random();
             data.Games.Add(new RoleGame()
             {
-                Color = modal.Color == "" ? new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)) : color,
+                Color = modal.Color == "" ? new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)).RawValue : color,
                 Description = modal.Description,
                 Link = modal.Link,
                 Master = Context.User.Id,
