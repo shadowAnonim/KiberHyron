@@ -30,6 +30,26 @@ namespace KiberHyron
             // Respond to the user
             await RespondWithModalAsync<GameModal>("newGameModal");
         }
+        [SlashCommand("показать_все_игры", "Отображает список всех существующих игр")]
+        public async Task ShowAllGames()
+        {
+            List<RoleGame> games = BotData.GetAllGames();
+            Embed[] embeds = new Embed[games.Count];
+            for (int i = 0; i < games.Count; i++) 
+            {
+                var game = games[i];
+                embeds[i] = new EmbedBuilder()
+                    .WithColor(new Color(game.Color))
+                    .WithDescription(game.Description)
+                    .WithTitle(game.Name)
+                    .WithUrl(game.Link)
+                    .Build();
+            }
+            // New LogMessage created to pass desired info to the console using the existing Discord.Net LogMessage parameters
+            await _logger.Log(new LogMessage(LogSeverity.Info, "InteractionModule : ShowAllGames", $"User: {Context.User.Username}, Command: показать_все_игры", null));
+            // Respond to the user
+            await RespondAsync(embeds: embeds);
+        }
         #endregion
         #region interactions
         [ModalInteraction("newGameModal")]
