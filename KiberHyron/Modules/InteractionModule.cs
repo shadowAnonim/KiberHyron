@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using KiberHyron.Data;
 using KiberHyron.Log;
 using Microsoft.Extensions.Logging;
@@ -33,34 +34,18 @@ namespace KiberHyron
         [SlashCommand("показать_все_игры", "Отображает список всех существующих игр")]
         public async Task ShowAllGames()
         {
-            List<RoleGame> games = BotData.GetAllGames();
-            if (games.Count == 0)
-            {
-                await RespondAsync("Пока что нет ни одной игры");
-                return;
-            }
-            Embed[] embeds = new Embed[games.Count];
-            for (int i = 0; i < games.Count; i++) 
-            {
-                var game = games[i];
-                embeds[i] = new EmbedBuilder()
-                    .WithColor(new Color(game.Color))
-                    .WithDescription(game.Description)
-                    .WithTitle(game.Name)
-                    .WithUrl(game.Link)
-                    .Build();
-            }
+            // Respond to the user
+            await RespondAsync("Список всех игр");
+            await ShowGames(Context.Channel, game => true);
             // New LogMessage created to pass desired info to the console using the existing Discord.Net LogMessage parameters
             await _logger.Log(new LogMessage(LogSeverity.Info, "InteractionModule : ShowAllGames", $"User: {Context.User.Username}, Command: показать_все_игры", null));
-            // Respond to the user
-            await RespondAsync(embeds: embeds);
         }
         #endregion
         #region interactions
         [ModalInteraction("newGameModal")]
         public async Task HandleNewGameModal(GameModal modal)
         {
-            if (!uint.TryParse(modal.Color, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var color) && modal.Color != "")
+            if (!uint.TryParse(modal.Color, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var color) && !string.IsNullOrEmpty(modal.Color))
             {
                 await RespondAsync("Поле \"Цвет\" содержит значение в неправильном формате. Попробуйте ещё раз", ephemeral: true);
                 return;
@@ -71,18 +56,54 @@ namespace KiberHyron
                 return;
             }
             BotData data = BotData.GetAllData();
+            if (data.Games.Count(game => game.Link == modal.Link) > 0)
+            {
+                await RespondAsync("Эта игра уже зарегистрирована: ", ephemeral: true);
+                await ShowGames(Context.Channel, game => game.Link == modal.Link);
+                return;
+            }
+            if (data.Games.Count(game => game.Name == modal.Name) > 0)
+            {
+                await RespondAsync("Игра с таким названием уже есть. Выберите другое.", ephemeral: true);
+                return;
+            }
             Random rand = new Random();
+            if (string.IsNullOrEmpty(modal.Color)) color = new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)).RawValue;
             data.Games.Add(new RoleGame()
             {
-                Color = modal.Color == "" ? new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)).RawValue : color,
+                Color = color,
                 Description = modal.Description,
                 Link = modal.Link,
                 Master = Context.User.Id,
                 Name = modal.Name
             });
             BotData.WriteNewData(data);
+            var role = await Context.Guild.CreateRoleAsync(modal.Name, color: color);
+            await (Context.User as IGuildUser).AddRoleAsync(role);
             await RespondAsync($"Создана игра: {modal.Name}");
         }
         #endregion
+
+        private async Task ShowGames(ISocketMessageChannel channel,  Func<RoleGame, bool> filter)
+        {
+            List<RoleGame> games = BotData.GetAllGames();
+            if (games.Count == 0)
+            {
+                await channel.SendMessageAsync("Пока что нет ни одной игры");
+                return;
+            }
+            Embed[] embeds = new Embed[games.Count];
+            for (int i = 0; i < games.Count; i++)
+            {
+                var game = games[i];
+                embeds[i] = new EmbedBuilder()
+                    .WithColor(new Color(game.Color))
+                    .WithDescription(game.Description)
+                    .WithTitle(game.Name)
+                    .WithUrl(game.Link)
+                    .Build();
+            }
+            await channel.SendMessageAsync(embeds: embeds);
+        }
     }
 }
