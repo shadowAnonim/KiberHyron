@@ -55,10 +55,10 @@ namespace KiberHyron
                 await RespondAsync("Поле \"Ссылка\" содержит значение в неправильном формате. Попробуйте ещё раз", ephemeral: true);
                 return;
             }
-            BotData data = BotData.GetAllData();
+            GamesData data = GamesData.GetAllData<GamesData>();
             if (data.Games.Count(game => game.Link == modal.Link) > 0)
             {
-                await RespondAsync("Эта игра уже зарегистрирована: ", ephemeral: true);
+                await RespondAsync("Эта игра уже зарегистрирована: ");
                 await ShowGames(Context.Channel, game => game.Link == modal.Link);
                 return;
             }
@@ -67,29 +67,40 @@ namespace KiberHyron
                 await RespondAsync("Игра с таким названием уже есть. Выберите другое.", ephemeral: true);
                 return;
             }
+            if (Context.Guild.Roles.Select(r => r.Name).Contains($"НРИ: {modal.Name}"))
+            {
+                await RespondAsync("На сервере уже есть роль с таким названием. Выберите другое.", ephemeral: true);
+                return;
+            }
             Random rand = new Random();
             if (string.IsNullOrEmpty(modal.Color)) color = new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)).RawValue;
+            var role = await Context.Guild.CreateRoleAsync($"НРИ: {modal.Name}", color: color);
+            await (Context.User as IGuildUser).AddRoleAsync(role);
             data.Games.Add(new RoleGame()
             {
                 Color = color,
                 Description = modal.Description,
                 Link = modal.Link,
                 Master = Context.User.Id,
-                Name = modal.Name
+                Name = modal.Name,
+                Role = role.Id
+                
             });
-            BotData.WriteNewData(data);
-            var role = await Context.Guild.CreateRoleAsync(modal.Name, color: color);
-            await (Context.User as IGuildUser).AddRoleAsync(role);
-            await RespondAsync($"Создана игра: {modal.Name}");
+            GamesData.WriteNewData<GamesData>(data);
+            await RespondAsync($"Игра создана:");
+            await ShowGames(Context.Channel, game => game.Name == modal.Name);
+            var message = await Context.Channel.SendMessageAsync("Поставьте 👍, чтобы присоединиться к игре");
+            await message.AddReactionAsync(new Emoji("👍"));
+            //var message = await Context.Channel.SendMessageAsync();
         }
         #endregion
 
         private async Task ShowGames(ISocketMessageChannel channel,  Func<RoleGame, bool> filter)
         {
-            List<RoleGame> games = BotData.GetAllGames();
+            List<RoleGame> games = GamesData.GetAllData<GamesData>().Games.Where(filter).ToList();
             if (games.Count == 0)
             {
-                await channel.SendMessageAsync("Пока что нет ни одной игры");
+                await channel.SendMessageAsync("Не найдено ни одной игры");
                 return;
             }
             Embed[] embeds = new Embed[games.Count];
