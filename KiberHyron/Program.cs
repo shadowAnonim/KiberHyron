@@ -80,7 +80,8 @@ namespace KiberHyron
                 await commands.RegisterCommandsGloballyAsync(true);
             };
 
-            _client.ReactionAdded += HandleReaction;
+            _client.ReactionAdded += HandleAddReaction;
+            _client.ReactionRemoved += HandleRemoveReaction;
 
             await _client.LoginAsync(TokenType.Bot, config["token"]);
             await _client.StartAsync();
@@ -88,17 +89,36 @@ namespace KiberHyron
             await Task.Delay(-1);
         }
 
-        private async Task HandleReaction(Cacheable<IUserMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction)
+        private async Task HandleRemoveReaction(Cacheable<IUserMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction)
         {
             List<ReactableMessage> messages = MessagesData.GetAllData<MessagesData>().messages;
-            ReactableMessage curMessage = messages.FirstOrDefault(m => m.Message == message.Value.Id);
+            ReactableMessage curMessage = messages.FirstOrDefault(m => m.Message == message.Id);
             if (curMessage == null) return;
-            if (reaction.Emote != new Emoji("👍")) return;
+            if (reaction.Emote.Name != "👍") return;
+            var player = reaction.User.Value;
+            if (player.Id == myId) return;
             GamesData games = GamesData.GetAllData<GamesData>();
             RoleGame game = games.Games.FirstOrDefault(game => game.Name == curMessage.Game);
-            game.Players.Add(message.Value.Author.Id);
+            if (player.Id == game.Master) return;
+            game.Players.Remove(player.Id);
             GamesData.WriteNewData(games);
-            await (message.Value.Author as IGuildUser).AddRoleAsync(game.Role);
+            await(player as IGuildUser).RemoveRoleAsync(game.Role);
+        }
+
+        private async Task HandleAddReaction(Cacheable<IUserMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction)
+        {
+            List<ReactableMessage> messages = MessagesData.GetAllData<MessagesData>().messages;
+            ReactableMessage curMessage = messages.FirstOrDefault(m => m.Message == message.Id);
+            if (curMessage == null) return;
+            if (reaction.Emote.Name != "👍") return;
+            var player = reaction.User.Value;
+            if (player.Id == myId) return;
+            GamesData games = GamesData.GetAllData<GamesData>();
+            RoleGame game = games.Games.FirstOrDefault(game => game.Name == curMessage.Game);
+            game.Players.Add(player.Id);
+            GamesData.WriteNewData(games);
+            await (player as IGuildUser).AddRoleAsync(game.Role);
+
         }
     }
 }

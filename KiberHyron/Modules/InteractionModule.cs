@@ -55,14 +55,14 @@ namespace KiberHyron
                 await RespondAsync("Поле \"Ссылка\" содержит значение в неправильном формате. Попробуйте ещё раз", ephemeral: true);
                 return;
             }
-            GamesData data = GamesData.GetAllData<GamesData>();
-            if (data.Games.Count(game => game.Link == modal.Link) > 0)
+            GamesData gamesData = GamesData.GetAllData<GamesData>();
+            if (gamesData.Games.Count(game => game.Link == modal.Link) > 0)
             {
                 await RespondAsync("Эта игра уже зарегистрирована: ");
                 await ShowGames(Context.Channel, game => game.Link == modal.Link);
                 return;
             }
-            if (data.Games.Count(game => game.Name == modal.Name) > 0)
+            if (gamesData.Games.Count(game => game.Name == modal.Name) > 0)
             {
                 await RespondAsync("Игра с таким названием уже есть. Выберите другое.", ephemeral: true);
                 return;
@@ -76,7 +76,7 @@ namespace KiberHyron
             if (string.IsNullOrEmpty(modal.Color)) color = new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)).RawValue;
             var role = await Context.Guild.CreateRoleAsync($"НРИ: {modal.Name}", color: color);
             await (Context.User as IGuildUser).AddRoleAsync(role);
-            data.Games.Add(new RoleGame()
+            gamesData.Games.Add(new RoleGame()
             {
                 Color = color,
                 Description = modal.Description,
@@ -86,12 +86,21 @@ namespace KiberHyron
                 Role = role.Id
                 
             });
-            GamesData.WriteNewData<GamesData>(data);
-            await RespondAsync($"Игра создана:");
-            await ShowGames(Context.Channel, game => game.Name == modal.Name);
-            var message = await Context.Channel.SendMessageAsync("Поставьте 👍, чтобы присоединиться к игре");
-            await message.AddReactionAsync(new Emoji("👍"));
-            //var message = await Context.Channel.SendMessageAsync();
+            try
+            {
+                GamesData.WriteNewData<GamesData>(gamesData);
+                await RespondAsync($"Игра создана:");
+                await ShowGames(Context.Channel, game => game.Name == modal.Name);
+                var message = await Context.Channel.SendMessageAsync("Поставьте 👍, чтобы присоединиться к игре");
+                MessagesData messagesdata = MessagesData.GetAllData<MessagesData>();
+                messagesdata.messages.Add(new ReactableMessage() { Message = message.Id, Game = modal.Name });
+                MessagesData.WriteNewData<MessagesData>(messagesdata);
+                await message.AddReactionAsync(new Emoji("👍"));
+            }
+            catch (Exception ex) 
+            {
+                Console.WriteLine(ex.ToString());
+            }
         }
         #endregion
 
